@@ -40,13 +40,9 @@ def get_serial():
         kIOMasterPortDefault,
         IOServiceMatching("IOPlatformExpertDevice")
     )
-    serial = IORegistryEntryCreateCFProperty(
-        platformExpert,
-        kIOPlatformSerialNumberKey,
-        kCFAllocatorDefault,
-        0
+    return IORegistryEntryCreateCFProperty(
+        platformExpert, kIOPlatformSerialNumberKey, kCFAllocatorDefault, 0
     )
-    return serial
 
 
 def get_deviceid(baseurl, headers, serial):

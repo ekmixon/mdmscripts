@@ -87,7 +87,7 @@ if __name__ == '__main__':
 def cleanUp(naggyPath, naggyLaunchAgentPath, naggyLaunchAgentIdentifier,
             userId, DNDOnPath, DNDOffPath):
     # Attempt to remove the LaunchAgent
-    NaggyLog('Attempting to remove LaunchAgent: ' + naggyLaunchAgentPath)
+    NaggyLog(f'Attempting to remove LaunchAgent: {naggyLaunchAgentPath}')
     try:
         os.remove(naggyLaunchAgentPath)
     except:  # noqa
@@ -95,26 +95,26 @@ def cleanUp(naggyPath, naggyLaunchAgentPath, naggyLaunchAgentIdentifier,
 
     # Attempt to remove the DND triggers
     if os.path.isfile(DNDOnPath):
-        NaggyLog('Attempting to remove DND On trigger: ' + DNDOnPath)
+        NaggyLog(f'Attempting to remove DND On trigger: {DNDOnPath}')
         try:
             os.remove(DNDOnPath)
         except:  # noqa
             pass
     elif os.path.isfile(DNDOffPath):
-        NaggyLog('Attempting to remove DND Off trigger: ' + DNDOffPath)
+        NaggyLog(f'Attempting to remove DND Off trigger: {DNDOffPath}')
         try:
             os.remove(DNDOffPath)
         except:  # noqa
             pass
 
     # Attempt to remove the launchagent from the user's list
-    NaggyLog('Targeting user id for LaunchAgent removal: ' + userId)
-    NaggyLog('Attempting to remove LaunchAgent: ' + naggyLaunchAgentIdentifier)
+    NaggyLog(f'Targeting user id for LaunchAgent removal: {userId}')
+    NaggyLog(f'Attempting to remove LaunchAgent: {naggyLaunchAgentIdentifier}')
     launchCTL('/bin/launchctl', 'asuser', userId,
               '/bin/launchctl', 'remove', naggyLaunchAgentIdentifier)
 
     # Attempt to kill InstallApplications' path
-    NaggyLog('Attempting to remove Naggy directory: ' + naggyPath)
+    NaggyLog(f'Attempting to remove Naggy directory: {naggyPath}')
     try:
         shutil.rmtree(naggyPath)
     except:  # noqa
@@ -122,8 +122,7 @@ def cleanUp(naggyPath, naggyLaunchAgentPath, naggyLaunchAgentIdentifier,
 
 
 def getConsoleUser():
-    CFUser = SCDynamicStoreCopyConsoleUser(None, None, None)
-    return CFUser
+    return SCDynamicStoreCopyConsoleUser(None, None, None)
 
 
 def launchCTL(*arg):
@@ -135,7 +134,6 @@ def launchCTL(*arg):
 
 
 def checkDEPEnrolledStatus(depProfileUuid):
-    enrollment = False
     cmd = ['/usr/bin/profiles', '-L', '-o', 'stdout-xml']
     run = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     output, err = run.communicate()
@@ -150,12 +148,10 @@ def checkDEPEnrolledStatus(depProfileUuid):
             profileUuid = ''
         if profileUuid == depProfileUuid:
             return True
-    return enrollment
+    return False
 
 
 def checkDEPEnrolledStatusHighSierra():
-    # Only for 10.13 and higher
-    enrollment = False
     enrolled = 'An enrollment profile is currently installed on this system'
     notEnrolled = 'There is no enrollment profile installed on this system'
     cmd = ['/usr/bin/profiles', 'status', '-type', 'enrollment']
@@ -166,7 +162,7 @@ def checkDEPEnrolledStatusHighSierra():
         return True
     elif notEnrolled in status:
         return False
-    return enrollment
+    return False
 
 
 def getOSVersion():
@@ -186,10 +182,7 @@ def hasDEPActivationRecord():
         plist = plistlib.readPlist(plistPath)
     except:  # noqa
         plist = {}
-    if not plist:
-        return False
-    else:
-        return True
+    return bool(plist)
 
 
 def NaggyLog(text):
@@ -214,60 +207,56 @@ def main():
     depProfileUuid = 'YOURUUIDHERE'
     needToNag = False
     OSVersion = getOSVersion()
-    NaggyLog('OS Version: %s' % OSVersion)
-    if '10.13' in OSVersion:
-        if checkDEPEnrolledStatusHighSierra():
-            NaggyLog('Device is already enrolled in DEP.')
-            exit(0)
-        else:
-            NaggyLog('Device is not enrolled in DEP.')
-            if hasDEPActivationRecord():
-                NaggyLog('DEP Activation record found.')
-                needToNag = True
+    NaggyLog(f'OS Version: {OSVersion}')
+    if (
+        '10.13' in OSVersion
+        and checkDEPEnrolledStatusHighSierra()
+        or '10.13' not in OSVersion
+        and checkDEPEnrolledStatus(depProfileUuid)
+    ):
+        NaggyLog('Device is already enrolled in DEP.')
+        exit(0)
     else:
-        if checkDEPEnrolledStatus(depProfileUuid):
-            NaggyLog('Device is already enrolled in DEP.')
-            exit(0)
-        else:
-            NaggyLog('Device is not enrolled in DEP.')
-            if hasDEPActivationRecord():
-                NaggyLog('DEP Activation record found.')
-                needToNag = True
-    if needToNag:
-        if (currentUserUid[0] is None or currentUserUid[0] == u'loginwindow'
-                or currentUserUid[0] == u'_mbsetupuser'):
-            pass
-        else:
-            naggyLaunchAgentIdentifier = 'com.github.naggyagent'
-            naggyLaunchAgentPlist = 'com.github.naggyagent.plist'
-            naggyPath = os.path.join('/Library', 'Application Support',
-                                     'naggy')
-            naggyAgentPath = os.path.join(naggyPath, 'naggyagent.py')
-            naggyLaunchAgentPath = os.path.join('/Library', 'LaunchAgents',
-                                                naggyLaunchAgentPlist)
-            DNDOnPath = '/Users/Shared/.dndon'
-            DNDOffPath = '/Users/Shared/.dndoff'
+        NaggyLog('Device is not enrolled in DEP.')
+        if hasDEPActivationRecord():
+            NaggyLog('DEP Activation record found.')
+            needToNag = True
+    if (
+        needToNag
+        and currentUserUid[0] is not None
+        and currentUserUid[0] != u'loginwindow'
+        and currentUserUid[0] != u'_mbsetupuser'
+    ):
+        naggyLaunchAgentIdentifier = 'com.github.naggyagent'
+        naggyLaunchAgentPlist = 'com.github.naggyagent.plist'
+        naggyPath = os.path.join('/Library', 'Application Support',
+                                 'naggy')
+        naggyAgentPath = os.path.join(naggyPath, 'naggyagent.py')
+        naggyLaunchAgentPath = os.path.join('/Library', 'LaunchAgents',
+                                            naggyLaunchAgentPlist)
+        DNDOnPath = '/Users/Shared/.dndon'
+        DNDOffPath = '/Users/Shared/.dndoff'
 
-            if not os.path.isdir(naggyPath):
-                os.makedirs(naggyPath)
-            with open(naggyAgentPath, 'wb') as na:
-                na.write(naggyAgentScript)
-            with open(naggyLaunchAgentPath, 'wb') as la:
-                la.write(naggyAgentLaunchAgent)
+        if not os.path.isdir(naggyPath):
+            os.makedirs(naggyPath)
+        with open(naggyAgentPath, 'wb') as na:
+            na.write(naggyAgentScript)
+        with open(naggyLaunchAgentPath, 'wb') as la:
+            la.write(naggyAgentLaunchAgent)
 
-            launchCTL('/bin/launchctl', 'asuser', userId,
-                      '/bin/launchctl', 'load', naggyLaunchAgentPath)
+        launchCTL('/bin/launchctl', 'asuser', userId,
+                  '/bin/launchctl', 'load', naggyLaunchAgentPath)
 
-            while not os.path.isfile(DNDOnPath) and not os.path.isfile(DNDOffPath):  # noqa
-                NaggyLog('Waiting for DND trigger file...')
-                time.sleep(3)
-            if os.path.isfile(DNDOnPath):
-                NaggyLog('doNotDisturb is enabled - disabling.')
-            elif os.path.isfile(DNDOffPath):
-                NaggyLog('doNotDisturb is disabled.')
-            triggerNag()
-            cleanUp(naggyPath, naggyLaunchAgentPath,
-                    naggyLaunchAgentIdentifier, userId, DNDOnPath, DNDOffPath)
+        while not os.path.isfile(DNDOnPath) and not os.path.isfile(DNDOffPath):  # noqa
+            NaggyLog('Waiting for DND trigger file...')
+            time.sleep(3)
+        if os.path.isfile(DNDOnPath):
+            NaggyLog('doNotDisturb is enabled - disabling.')
+        elif os.path.isfile(DNDOffPath):
+            NaggyLog('doNotDisturb is disabled.')
+        triggerNag()
+        cleanUp(naggyPath, naggyLaunchAgentPath,
+                naggyLaunchAgentIdentifier, userId, DNDOnPath, DNDOffPath)
 
 
 if __name__ == '__main__':

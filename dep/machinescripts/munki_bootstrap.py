@@ -57,15 +57,11 @@ def readPlist(filepath):
         NSPropertyListSerialization.
         propertyListFromData_mutabilityOption_format_errorDescription_(
             plistData, NSPropertyListMutableContainers, None, None))
-    if dataObject is None:
-        if error:
-            error = error.encode('ascii', 'ignore')
-        else:
-            error = "Unknown error"
-        errmsg = "%s in file %s" % (error, filepath)
-        raise NSPropertyListSerializationException(errmsg)
-    else:
+    if dataObject is not None:
         return dataObject
+    error = error.encode('ascii', 'ignore') if error else "Unknown error"
+    errmsg = f"{error} in file {filepath}"
+    raise NSPropertyListSerializationException(errmsg)
 
 
 def munkirun(id):

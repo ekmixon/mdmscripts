@@ -41,8 +41,7 @@ def get_hardware_info():
         # system_profiler xml is an array
         sp_dict = plist[0]
         items = sp_dict['_items']
-        sp_hardware_dict = items[0]
-        return sp_hardware_dict
+        return items[0]
     except BaseException:
         return {}
     # pylint: enable=broad-except
@@ -51,7 +50,7 @@ def get_hardware_info():
 def get_deviceid(baseurl, headers, serial, username, password):
     # pylint: disable=broad-except
     '''Gets the deviceid from WS1'''
-    url = '%s/api/mdm/devices' % baseurl
+    url = f'{baseurl}/api/mdm/devices'
     query = {'searchby': 'Serialnumber', 'id': serial}
     try:
         response = requests.get(
@@ -70,8 +69,7 @@ def get_deviceid(baseurl, headers, serial, username, password):
 def custom_mdm_command(baseurl, headers, deviceid, command, username, password):
     # pylint: disable=broad-except
     '''Sends a custom mdm command to a specific device'''
-    url = '%s/api/mdm/devices/%s/commands?command=CustomMDMCommand' % (baseurl,
-                                                                       deviceid)
+    url = f'{baseurl}/api/mdm/devices/{deviceid}/commands?command=CustomMDMCommand'
     try:
         response = requests.post(
             url,
@@ -79,11 +77,12 @@ def custom_mdm_command(baseurl, headers, deviceid, command, username, password):
             headers=headers,
             data=command
         )
-        if response.status_code == 202:
-            msg = 'Command successfully sent to device.'
-        else:
-            msg = response.code
-        return msg
+        return (
+            'Command successfully sent to device.'
+            if response.status_code == 202
+            else response.code
+        )
+
     except BaseException:
         return None
     # pylint: enable=broad-except
@@ -128,11 +127,7 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if args.targetserial:
-        serial = args.targetserial
-    else:
-        serial = get_hardware_info().get('serial_number', None)
-
+    serial = args.targetserial or get_hardware_info().get('serial_number', None)
     if not serial:
         print('Could not retrieve targeted serial number.')
         sys.exit(1)
@@ -157,12 +152,7 @@ def main():
         'accept': 'application/json',
     }
 
-    # Use AirWatch API to get the deviceid of the serial number
-    deviceid = get_deviceid(baseurl, headers, serial, username, password)
-
-    # Send the InstallEnterpriseApplication command with the application
-    # manifest.plist
-    if deviceid:
+    if deviceid := get_deviceid(baseurl, headers, serial, username, password):
         print(custom_mdm_command(
             baseurl, headers, deviceid, command, username, password))
     else:
