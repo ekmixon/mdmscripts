@@ -22,9 +22,7 @@ def get_PID(processname):
 
 
 def main():
-    # Kill System Preferences as it's probably open
-    prefspid = get_PID('System Preferences')
-    if prefspid:
+    if prefspid := get_PID('System Preferences'):
         os.kill(int(prefspid), signal.SIGKILL)
 
 
